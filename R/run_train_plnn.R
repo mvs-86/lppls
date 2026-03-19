@@ -21,18 +21,16 @@ plan(multisession, workers = parallelly::availableCores(omit = 1))
 
 # --- Configuration ----------------------------------------------------------
 
-N_SAMPLES <- 10000L   # increase to 100000 for full paper reproduction
+N_SAMPLES <- 100000L   # increase to 100000 for full paper reproduction
 T_LEN <- 252L
 BATCH_SIZE <- 8L
 LR <- 1e-5
 EPOCHS <- 20L
-EPOCHS <- 10L
 SEED <- 42
 
 # --- Generate datasets and train --------------------------------------------
 
 noise_types <- c("white", "ar1", "both")
-noise_types <- c("both")
 
 for (noise in noise_types) {
   cat(sprintf("\n=== Training P-LNN-%s (%d samples) ===\n", toupper(noise), N_SAMPLES))
