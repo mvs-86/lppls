@@ -11,6 +11,27 @@ source(file.path(root, "R", "lppls_core.R"))
 
 # --- Multi-window calibration -----------------------------------------------
 
+#' Run LPPLS calibrations over a grid of observation windows.
+#'
+#' For every combination of \code{t1} and \code{t2} (cross-join filtered by
+#' \code{min_window}), calibrates the LPPLS model using the chosen
+#' \code{method} and collects the estimated \code{tc}. Invalid fits (as
+#' determined by \code{\link{lppls_filter}}) are discarded. Execution is
+#' parallelised with \code{future.apply::future_lapply}.
+#'
+#' @param obs_dt A \code{data.table} with columns \code{t} (numeric time
+#'   index) and \code{value} (observed series).
+#' @param t1_seq Numeric vector of candidate window start times.
+#' @param t2_seq Numeric vector of candidate window end times.
+#' @param method One of \code{"lm"}, \code{"mlnn"}, or \code{"plnn"}.
+#' @param model A trained P-LNN model object (required when
+#'   \code{method = "plnn"}). Ignored otherwise.
+#' @param n_starts Number of random starts for LM calibration (default 25).
+#' @param min_window Minimum window length in observations (default 50).
+#' @param m_range,omega_range Bounds passed to \code{\link{lppls_fit_lm}} and
+#'   \code{\link{lppls_filter}}.
+#' @return A \code{data.table} with columns \code{t1, t2, tc, m, omega, sse,
+#'   method}. May have zero rows if no fits pass the filter.
 lppls_multi_window <- function(obs_dt,
                                t1_seq,
                                t2_seq,
@@ -78,6 +99,19 @@ lppls_multi_window <- function(obs_dt,
 
 # --- PDF computation --------------------------------------------------------
 
+#' Compute a kernel density estimate (PDF) for predicted tc values.
+#'
+#' Wraps \code{stats::density()} and returns the result as a
+#' \code{data.table}.
+#'
+#' @param tc_values Numeric vector of critical-time estimates from
+#'   \code{\link{lppls_multi_window}}.
+#' @param bandwidth Bandwidth selector passed to \code{density()}. Default
+#'   \code{"SJ"} (Sheather-Jones); falls back to \code{"nrd0"} on error.
+#' @param n_points Number of equally-spaced evaluation points (default 512).
+#' @return A \code{data.table} with columns \code{tc} and \code{density}.
+#'   For a single input value, returns a one-row table with
+#'   \code{density = 1}.
 lppls_tc_pdf <- function(tc_values, bandwidth = "SJ", n_points = 512) {
   if (length(tc_values) < 2) {
     return(data.table(tc = tc_values, density = 1))
@@ -89,6 +123,12 @@ lppls_tc_pdf <- function(tc_values, bandwidth = "SJ", n_points = 512) {
 
 # --- CDF computation -------------------------------------------------------
 
+#' Compute the empirical CDF for predicted tc values.
+#'
+#' @param tc_values Numeric vector of critical-time estimates.
+#' @return A \code{data.table} with columns \code{tc} (sorted) and \code{cdf}
+#'   (cumulative probability, \code{i/n}). Returns an empty table for
+#'   zero-length input.
 lppls_tc_cdf <- function(tc_values) {
   if (length(tc_values) < 1) {
     return(data.table(tc = numeric(0), cdf = numeric(0)))

@@ -14,6 +14,19 @@ source(file.path(root, "R", "lppls_core.R"))
 
 # --- M-LNN torch module ----------------------------------------------------
 
+#' M-LNN (Mono-LPPLS Neural Network) module.
+#'
+#' A feed-forward network with two hidden layers and ReLU activations.
+#' Takes the full time series as a single input vector and outputs three
+#' raw (unconstrained) scalars that are mapped to \code{(tc, m, omega)} via
+#' sigmoid activations during training.
+#'
+#' @section Architecture (Eq. 2):
+#' \code{h1 = ReLU(W1*X + b1)}, \code{h2 = ReLU(W2*h1 + b2)},
+#' \code{Y = Wo*h2 + bo}.
+#'
+#' @param input_dim Integer length of the input time series.
+#' @param hidden_dim Integer width of hidden layers (default 64).
 mlnn_module <- nn_module(
   "MLNN",
   initialize = function(input_dim, hidden_dim = 64) {
@@ -31,6 +44,15 @@ mlnn_module <- nn_module(
 
 # --- Differentiable LPPLS reconstruction in torch ---------------------------
 
+#' Build the LPPLS design matrix as a differentiable torch operation.
+#'
+#' Computes the same four basis columns as \code{\link{lppls_basis}} but
+#' using torch tensors so that gradients flow through \code{tc}, \code{m},
+#' and \code{omega}.
+#'
+#' @param t_tensor 1-D float tensor of normalised time points.
+#' @param tc,m,omega Scalar float tensors (require gradients).
+#' @return A \code{(n, 4)} float tensor \code{[1, f, g, h]}.
 torch_lppls_reconstruct <- function(t_tensor, tc, m, omega) {
   # t_tensor: (n,) tensor of normalized time points
   # tc, m, omega: scalar tensors (differentiable)
@@ -50,6 +72,34 @@ torch_lppls_reconstruct <- function(t_tensor, tc, m, omega) {
 
 # --- Training function ------------------------------------------------------
 
+#' Train an M-LNN model on a single time series.
+#'
+#' The network predicts the three nonlinear LPPLS parameters
+#' \code{(tc, m, omega)}; the four linear parameters are solved analytically
+#' inside the loss via \code{linalg_lstsq}. The total loss is
+#' \code{MSE(observed, LPPLS_reconstructed) + alpha * boundary_penalty}.
+#'
+#' Both the time vector and observations are min-max scaled to \code{[0, 1]}
+#' before training. The best model state (lowest total loss) is restored
+#' after training and parameters are denormalised back to the original scale.
+#'
+#' @param t_vec Numeric vector of observation times.
+#' @param obs_vec Numeric vector of observed values (same length as
+#'   \code{t_vec}).
+#' @param lr Learning rate for Adam (default 0.01).
+#' @param epochs Number of training epochs (default 1000).
+#' @param alpha Penalty coefficient for parameter boundary violations
+#'   (default 10).
+#' @param hidden_dim Width of the two hidden layers (default 64).
+#' @param verbose If \code{TRUE}, print progress every 100 epochs.
+#' @return A list with components:
+#'   \describe{
+#'     \item{tc, m, omega}{Estimated nonlinear parameters (original scale).}
+#'     \item{A, B, C1, C2}{Estimated linear parameters.}
+#'     \item{loss_history}{Numeric vector of total loss per epoch.}
+#'     \item{fitted_values}{LPPLS fit evaluated at \code{t_vec}.}
+#'     \item{model}{The trained \code{mlnn_module} torch object.}
+#'   }
 mlnn_train <- function(t_vec, obs_vec,
                        lr = 0.01,
                        epochs = 1000,
