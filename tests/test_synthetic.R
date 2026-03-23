@@ -91,3 +91,27 @@ test_that("generate_training_dataset returns correct shapes for all noise", {
   expect_equal(dim(ds$Y), c(30L, 3L))
   expect_true(all(ds$X >= 0 & ds$X <= 1))
 })
+
+test_that("simulate_msm produces volatility clustering in squared returns", {
+  set.seed(42)
+  r <- simulate_msm(2000L, k = 8L, m0 = 1.4, b = 4, gamma_k = 0.5)
+  acf_sq <- acf(r^2, lag.max = 10, plot = FALSE)$acf[11]
+  expect_gt(acf_sq, 0.05)
+})
+
+test_that("add_msm_noise amplitude calibration is approximate", {
+  set.seed(42)
+  vals <- sin(seq(0, 4 * pi, length.out = 500)) + 5
+  amplitude <- 0.05
+  noisy <- add_msm_noise(vals, amplitude)
+  noise <- noisy - vals
+  expect_equal(sd(noise), amplitude * sd(vals), tolerance = 0.1 * sd(vals))
+})
+
+test_that("generate_training_dataset returns correct shapes for msm noise", {
+  set.seed(42)
+  ds <- generate_training_dataset(n = 20, t_len = 100, noise_type = "msm")
+  expect_equal(dim(ds$X), c(20L, 100L))
+  expect_equal(dim(ds$Y), c(20L, 3L))
+  expect_true(all(ds$X >= 0 & ds$X <= 1))
+})

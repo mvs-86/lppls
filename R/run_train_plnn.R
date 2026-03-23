@@ -1,10 +1,11 @@
 # run_train_plnn.R -- Train P-LNN models on synthetic data
 #
-# Trains five P-LNN variants:
+# Trains six P-LNN variants:
 #   P-LNN-WHITE:  white noise augmentation
 #   P-LNN-AR1:    AR(1) noise augmentation
 #   P-LNN-BOTH:   mixed white + AR(1) noise
 #   P-LNN-ARFIMA: ARFIMA long-memory noise augmentation
+#   P-LNN-MSM:    MSM (Markov-Switching Multifractal) volatility clustering noise
 #   P-LNN-ALL:    equal mix of white, AR(1), and ARFIMA noise
 #
 # Supports both local (RStudio/Rscript) and Kaggle environments.
@@ -53,7 +54,7 @@ SEED       <- 42
 
 # --- Generate datasets and train --------------------------------------------
 
-noise_types <- c("white", "ar1", "both", "arfima", "all")
+noise_types <- c("white", "ar1", "both", "arfima", "msm", "all")
 
 for (noise in noise_types) {
   cat(sprintf("\n=== Training P-LNN-%s (%d samples) ===\n", toupper(noise), N_SAMPLES))

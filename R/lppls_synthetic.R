@@ -63,6 +63,35 @@ add_arfima_noise <- function(values, amplitude, d = 0.3) {
   values + raw
 }
 
+simulate_msm <- function(n, k = 8L, m0 = 1.4, b = 4, gamma_k = 0.5) {
+  # Transition probabilities: j=1 slowest, j=k fastest
+  gamma  <- 1 - (1 - gamma_k)^(b^((k - 1):0))
+  m_vals <- c(m0, 2 - m0)
+
+  # Pre-generate all flip decisions and new-state draws outside the loop
+  flip      <- matrix(runif(k * n) < gamma, nrow = k)
+  new_state <- matrix(sample(1L:2L, k * n, replace = TRUE), nrow = k)
+
+  # Markov state propagation (sequential; state[t] depends on state[t-1])
+  states       <- matrix(0L, nrow = k, ncol = n + 1L)
+  states[, 1L] <- sample(1L:2L, k, replace = TRUE)
+  for (t in seq_len(n)) {
+    states[, t + 1L] <- ifelse(flip[, t], new_state[, t], states[, t])
+  }
+  states <- states[, -1L, drop = FALSE]
+
+  # Numerically stable product of multipliers across k levels
+  sigma_t <- exp(colSums(matrix(log(m_vals[states]), nrow = k)))
+  sqrt(sigma_t) * rnorm(n)
+}
+
+add_msm_noise <- function(values, amplitude, k = 8L, m0 = 1.4, b = 4, gamma_k = 0.5) {
+  raw <- simulate_msm(length(values), k = k, m0 = m0, b = b, gamma_k = gamma_k)
+  raw <- raw - mean(raw)
+  if (sd(raw) > 0) raw <- raw / sd(raw) * amplitude * sd(values)
+  values + raw
+}
+
 # --- Min-max scaling --------------------------------------------------------
 
 minmax_scale <- function(x) {
@@ -76,11 +105,15 @@ minmax_scale <- function(x) {
 generate_training_dataset <- function(n = 10000,
                                       t_len = 252,
                                       noise_type = c("white", "ar1", "both",
-                                                     "arfima", "all"),
+                                                     "arfima", "msm", "all"),
                                       noise_amp_white  = c(0.01, 0.15),
                                       noise_amp_ar1    = c(0.01, 0.05),
                                       noise_amp_arfima = c(0.01, 0.05),
+                                      noise_amp_msm    = c(0.01, 0.05),
                                       d_range          = c(0.05, 0.45),
+                                      m0_range         = c(1.1, 1.9),
+                                      b_range          = c(2, 8),
+                                      gamma_k_range    = c(0.3, 0.7),
                                       phi = 0.9,
                                       seed = 42) {
   noise_type <- match.arg(noise_type)
@@ -103,15 +136,20 @@ generate_training_dataset <- function(n = 10000,
     series <- generate_lppls_series(p, t_len)
     vals <- series$value
 
-    amp_w <- runif(1, noise_amp_white[1],  noise_amp_white[2])
-    amp_a <- runif(1, noise_amp_ar1[1],    noise_amp_ar1[2])
-    amp_f <- runif(1, noise_amp_arfima[1], noise_amp_arfima[2])
-    d_val <- runif(1, d_range[1],          d_range[2])
+    amp_w  <- runif(1, noise_amp_white[1],  noise_amp_white[2])
+    amp_a  <- runif(1, noise_amp_ar1[1],    noise_amp_ar1[2])
+    amp_f  <- runif(1, noise_amp_arfima[1], noise_amp_arfima[2])
+    amp_m  <- runif(1, noise_amp_msm[1],    noise_amp_msm[2])
+    d_val  <- runif(1, d_range[1],          d_range[2])
+    m0_val <- runif(1, m0_range[1],         m0_range[2])
+    b_val  <- runif(1, b_range[1],          b_range[2])
+    gk_val <- runif(1, gamma_k_range[1],    gamma_k_range[2])
 
     noisy <- switch(noise_type,
       white  = add_white_noise(vals, amp_w),
       ar1    = add_ar1_noise(vals, amp_a, phi),
       arfima = add_arfima_noise(vals, amp_f, d_val),
+      msm    = add_msm_noise(vals, amp_m, m0 = m0_val, b = b_val, gamma_k = gk_val),
       both   = {
         if (runif(1) < 0.5) add_white_noise(vals, amp_w)
         else add_ar1_noise(vals, amp_a, phi)
@@ -132,11 +170,15 @@ generate_training_dataset <- function(n = 10000,
 generate_training_dataset_parallel <- function(n = 10000,
                                                t_len = 252,
                                                noise_type = c("white", "ar1", "both",
-                                                              "arfima", "all"),
+                                                              "arfima", "msm", "all"),
                                                noise_amp_white  = c(0.01, 0.15),
                                                noise_amp_ar1    = c(0.01, 0.05),
                                                noise_amp_arfima = c(0.01, 0.05),
+                                               noise_amp_msm    = c(0.01, 0.05),
                                                d_range          = c(0.05, 0.45),
+                                               m0_range         = c(1.1, 1.9),
+                                               b_range          = c(2, 8),
+                                               gamma_k_range    = c(0.3, 0.7),
                                                phi = 0.9,
                                                seed = 42) {
   noise_type <- match.arg(noise_type)
@@ -152,11 +194,15 @@ generate_training_dataset_parallel <- function(n = 10000,
   )])
 
   # Pre-generate all random values for reproducibility across workers
-  amps_w <- runif(n, noise_amp_white[1],  noise_amp_white[2])
-  amps_a <- runif(n, noise_amp_ar1[1],    noise_amp_ar1[2])
-  amps_f <- runif(n, noise_amp_arfima[1], noise_amp_arfima[2])
-  d_vals <- runif(n, d_range[1],          d_range[2])
-  coin   <- runif(n)
+  amps_w  <- runif(n, noise_amp_white[1],  noise_amp_white[2])
+  amps_a  <- runif(n, noise_amp_ar1[1],    noise_amp_ar1[2])
+  amps_f  <- runif(n, noise_amp_arfima[1], noise_amp_arfima[2])
+  amps_m  <- runif(n, noise_amp_msm[1],    noise_amp_msm[2])
+  d_vals  <- runif(n, d_range[1],          d_range[2])
+  m0_vals <- runif(n, m0_range[1],         m0_range[2])
+  b_vals  <- runif(n, b_range[1],          b_range[2])
+  gk_vals <- runif(n, gamma_k_range[1],    gamma_k_range[2])
+  coin    <- runif(n)
 
   results <- future.apply::future_lapply(seq_len(n), function(i) {
     p <- params_dt[i]
@@ -167,6 +213,8 @@ generate_training_dataset_parallel <- function(n = 10000,
       white  = add_white_noise(vals, amps_w[i]),
       ar1    = add_ar1_noise(vals, amps_a[i], phi),
       arfima = add_arfima_noise(vals, amps_f[i], d_vals[i]),
+      msm    = add_msm_noise(vals, amps_m[i], m0 = m0_vals[i], b = b_vals[i],
+                             gamma_k = gk_vals[i]),
       both   = {
         if (coin[i] < 0.5) add_white_noise(vals, amps_w[i])
         else add_ar1_noise(vals, amps_a[i], phi)
