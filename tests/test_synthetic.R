@@ -57,3 +57,37 @@ test_that("minmax_scale maps to [0,1]", {
   expect_equal(min(s), 0)
   expect_equal(max(s), 1)
 })
+
+test_that("add_arfima_noise amplitude calibration is approximate", {
+  set.seed(42)
+  vals <- sin(seq(0, 4 * pi, length.out = 500)) + 5
+  amplitude <- 0.05
+  noisy <- add_arfima_noise(vals, amplitude, d = 0.3)
+  noise <- noisy - vals
+  expect_equal(sd(noise), amplitude * sd(vals), tolerance = 0.1 * sd(vals))
+})
+
+test_that("add_arfima_noise produces long-range dependence", {
+  set.seed(42)
+  vals <- sin(seq(0, 4 * pi, length.out = 500)) + 5
+  noisy <- add_arfima_noise(vals, amplitude = 0.05, d = 0.4)
+  noise <- noisy - vals
+  acf_val <- acf(noise, lag.max = 10, plot = FALSE)$acf[11]
+  expect_gt(acf_val, 0.05)
+})
+
+test_that("generate_training_dataset returns correct shapes for arfima noise", {
+  set.seed(42)
+  ds <- generate_training_dataset(n = 20, t_len = 100, noise_type = "arfima")
+  expect_equal(dim(ds$X), c(20L, 100L))
+  expect_equal(dim(ds$Y), c(20L, 3L))
+  expect_true(all(ds$X >= 0 & ds$X <= 1))
+})
+
+test_that("generate_training_dataset returns correct shapes for all noise", {
+  set.seed(42)
+  ds <- generate_training_dataset(n = 30, t_len = 100, noise_type = "all")
+  expect_equal(dim(ds$X), c(30L, 100L))
+  expect_equal(dim(ds$Y), c(30L, 3L))
+  expect_true(all(ds$X >= 0 & ds$X <= 1))
+})

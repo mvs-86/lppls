@@ -56,6 +56,13 @@ add_ar1_noise <- function(values, amplitude, phi = 0.9) {
   values + eta
 }
 
+add_arfima_noise <- function(values, amplitude, d = 0.3) {
+  raw <- fracdiff::fracdiff.sim(length(values), d = d)$series
+  raw <- raw - mean(raw)
+  if (sd(raw) > 0) raw <- raw / sd(raw) * amplitude * sd(values)
+  values + raw
+}
+
 # --- Min-max scaling --------------------------------------------------------
 
 minmax_scale <- function(x) {
@@ -68,9 +75,12 @@ minmax_scale <- function(x) {
 
 generate_training_dataset <- function(n = 10000,
                                       t_len = 252,
-                                      noise_type = c("white", "ar1", "both"),
-                                      noise_amp_white = c(0.01, 0.15),
-                                      noise_amp_ar1 = c(0.01, 0.05),
+                                      noise_type = c("white", "ar1", "both",
+                                                     "arfima", "all"),
+                                      noise_amp_white  = c(0.01, 0.15),
+                                      noise_amp_ar1    = c(0.01, 0.05),
+                                      noise_amp_arfima = c(0.01, 0.05),
+                                      d_range          = c(0.05, 0.45),
                                       phi = 0.9,
                                       seed = 42) {
   noise_type <- match.arg(noise_type)
@@ -93,18 +103,24 @@ generate_training_dataset <- function(n = 10000,
     series <- generate_lppls_series(p, t_len)
     vals <- series$value
 
-    amp_w <- runif(1, noise_amp_white[1], noise_amp_white[2])
-    amp_a <- runif(1, noise_amp_ar1[1], noise_amp_ar1[2])
+    amp_w <- runif(1, noise_amp_white[1],  noise_amp_white[2])
+    amp_a <- runif(1, noise_amp_ar1[1],    noise_amp_ar1[2])
+    amp_f <- runif(1, noise_amp_arfima[1], noise_amp_arfima[2])
+    d_val <- runif(1, d_range[1],          d_range[2])
 
     noisy <- switch(noise_type,
-      white = add_white_noise(vals, amp_w),
-      ar1   = add_ar1_noise(vals, amp_a, phi),
-      both  = {
-        if (runif(1) < 0.5) {
-          add_white_noise(vals, amp_w)
-        } else {
-          add_ar1_noise(vals, amp_a, phi)
-        }
+      white  = add_white_noise(vals, amp_w),
+      ar1    = add_ar1_noise(vals, amp_a, phi),
+      arfima = add_arfima_noise(vals, amp_f, d_val),
+      both   = {
+        if (runif(1) < 0.5) add_white_noise(vals, amp_w)
+        else add_ar1_noise(vals, amp_a, phi)
+      },
+      all    = {
+        r <- runif(1)
+        if      (r < 1/3) add_white_noise(vals, amp_w)
+        else if (r < 2/3) add_ar1_noise(vals, amp_a, phi)
+        else              add_arfima_noise(vals, amp_f, d_val)
       }
     )
     X[i, ] <- minmax_scale(noisy)
@@ -115,9 +131,12 @@ generate_training_dataset <- function(n = 10000,
 
 generate_training_dataset_parallel <- function(n = 10000,
                                                t_len = 252,
-                                               noise_type = c("white", "ar1", "both"),
-                                               noise_amp_white = c(0.01, 0.15),
-                                               noise_amp_ar1 = c(0.01, 0.05),
+                                               noise_type = c("white", "ar1", "both",
+                                                              "arfima", "all"),
+                                               noise_amp_white  = c(0.01, 0.15),
+                                               noise_amp_ar1    = c(0.01, 0.05),
+                                               noise_amp_arfima = c(0.01, 0.05),
+                                               d_range          = c(0.05, 0.45),
                                                phi = 0.9,
                                                seed = 42) {
   noise_type <- match.arg(noise_type)
@@ -132,10 +151,12 @@ generate_training_dataset_parallel <- function(n = 10000,
     omega   = omega / 13
   )])
 
-  # Pre-generate noise amplitudes
-  amps_w <- runif(n, noise_amp_white[1], noise_amp_white[2])
-  amps_a <- runif(n, noise_amp_ar1[1], noise_amp_ar1[2])
-  coin <- runif(n)
+  # Pre-generate all random values for reproducibility across workers
+  amps_w <- runif(n, noise_amp_white[1],  noise_amp_white[2])
+  amps_a <- runif(n, noise_amp_ar1[1],    noise_amp_ar1[2])
+  amps_f <- runif(n, noise_amp_arfima[1], noise_amp_arfima[2])
+  d_vals <- runif(n, d_range[1],          d_range[2])
+  coin   <- runif(n)
 
   results <- future.apply::future_lapply(seq_len(n), function(i) {
     p <- params_dt[i]
@@ -143,11 +164,18 @@ generate_training_dataset_parallel <- function(n = 10000,
     vals <- series$value
 
     noisy <- switch(noise_type,
-      white = add_white_noise(vals, amps_w[i]),
-      ar1   = add_ar1_noise(vals, amps_a[i], phi),
-      both  = {
+      white  = add_white_noise(vals, amps_w[i]),
+      ar1    = add_ar1_noise(vals, amps_a[i], phi),
+      arfima = add_arfima_noise(vals, amps_f[i], d_vals[i]),
+      both   = {
         if (coin[i] < 0.5) add_white_noise(vals, amps_w[i])
         else add_ar1_noise(vals, amps_a[i], phi)
+      },
+      all    = {
+        r <- coin[i]
+        if      (r < 1/3) add_white_noise(vals, amps_w[i])
+        else if (r < 2/3) add_ar1_noise(vals, amps_a[i], phi)
+        else              add_arfima_noise(vals, amps_f[i], d_vals[i])
       }
     )
     minmax_scale(noisy)

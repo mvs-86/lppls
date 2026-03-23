@@ -734,6 +734,21 @@
       "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
       "Repository": "CRAN"
     },
+    "fracdiff": {
+      "Package": "fracdiff",
+      "Version": "1.5-3",
+      "Source": "Repository",
+      "Title": "Fractionally Differenced ARIMA aka ARFIMA(P,d,q) Models",
+      "Author": "R port: Fritz Leisch and Valderio Reisen and Artur Lemonte; S original: Chris Fraley; additional contributions Martin Maechler",
+      "Maintainer": "Martin Maechler <maechler@stat.math.ethz.ch>",
+      "Description": "Maximum likelihood estimation of the parameters of a fractionally differenced ARIMA(p,d,q) model (Haslett and Raftery, Applied Statistics, 1989), together with a set of procedures to aid in the analysis of the parameters including inference and basic methods.",
+      "Depends": [
+        "R (>= 3.0.2)"
+      ],
+      "License": "GPL (>= 2)",
+      "NeedsCompilation": "yes",
+      "Repository": "CRAN"
+    },
     "future": {
       "Package": "future",
       "Version": "1.70.0",
