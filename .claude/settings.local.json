@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Scholar_Gateway__semanticSearch",
+      "Bash(Rscript -e \"testthat::test_file\\('tests/test_lppls_core.R'\\)\" 2>&1)",
+      "Bash(Rscript -e \"setwd\\('C:/Users/marcus/Projetos/lppls'\\); testthat::test_file\\('tests/test_lppls_core.R', chdir=FALSE\\)\" 2>&1)",
+      "Bash(Rscript -e \"testthat::test_file\\('tests/test_synthetic.R'\\)\" 2>&1)",
+      "Bash(Rscript -e \"testthat::test_file\\('tests/test_m_lnn.R'\\)\" 2>&1)",
+      "Bash(Rscript -e \"testthat::test_file\\('tests/test_p_lnn.R'\\)\" 2>&1)",
+      "Bash(Rscript -e \"renv::snapshot\\(\\)\")",
+      "Bash(Rscript -e \"testthat::test_dir\\('tests'\\)\" 2>&1)",
+      "Bash(export 'PATH=$PATH:/c/Program Files/GitHub CLI:/c/Program Files \\(x86\\)/GitHub CLI:/c/Users/marcus/AppData/Local/Microsoft/WinGet/Packages')",
+      "Read(//c/Program Files/GitHub CLI//**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Read(//c/Users/marcus/AppData/**)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\")",
+      "Bash(gh auth:*)",
+      "mcp__colab-mcp__get_cells",
+      "mcp__colab-mcp__open_colab_browser_connection",
+      "mcp__colab-mcp__add_text_cell",
+      "mcp__colab-mcp__add_code_cell",
+      "Bash(grep -v \"^$\")",
+      "WebSearch",
+      "WebFetch(domain:arxiv.org)",
+      "Bash(Rscript -e \"testthat::test_file\\('tests/test_higher_order.R'\\)\" 2>&1)",
+      "Bash(Rscript -e \"testthat::test_file\\('tests/test_glppls_synthetic.R'\\)\" 2>&1)",
+      "Bash(Rscript -e \"testthat::test_file\\('tests/test_glppls_nn.R'\\)\" 2>&1)",
+      "Bash(Rscript -e \"library\\(torch\\); ls\\('package:torch'\\)[grepl\\('lr_scheduler', ls\\('package:torch'\\)\\)]\" 2>&1)"
+    ]
+  }
+}
